@@ -1,0 +1,239 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+### Problem 1
+
+```{r}
+equity_process1 <- function(mu, sigma, r, A0, B0, t, m){
+  dt <- t/m
+  time <- seq(0, t, length.out=(m + 1) )
+  Z <- rnorm(m)
+  Wt <- c(0, cumsum(sqrt(dt) * Z))
+  
+  A <- A0 * exp((mu - (sigma^2)/2) * time + sigma * Wt)
+  B <- B0 * exp(r * time)
+  return(pmax(A - B,0))
+}
+
+```
+
+#(1a) Sample paths
+```{r}
+E <- equity_process1(mu=0.1, sigma=0.2, r=0.1, A0=1000, B0=900, t=10 , m= 1e2)
+time <- seq(0, t =10, length.out = length(E))
+plot(time, E, type="l")
+```
+
+#(1b) Default probability
+```{r}
+sim <- replicate(1e4, equity_process1(mu=0.1, sigma=0.2, r=0.1, A0=1000, B0=900, t=5 , m= 1e2))
+mean(sim[nrow(sim),] == 0)
+
+```
+
+#(1c) Adding jump processes
+
+
+```{r}
+equity_process3 <- function(mu,t,sigma, n, A0, B0 ,r, nsim, lambda){
+  dt <- t/n
+  Z <- matrix(rnorm(n*nsim), ncol = nsim)
+  
+  A <- matrix(0,nrow = n+1, ncol = nsim)
+  B <- matrix(0,nrow = n+1, ncol = nsim)
+  E <- matrix(0,nrow = n+1, ncol = nsim)
+  jump <- function(dNt){
+    if(dNt >= 1){ return(sum(runif(dNt,-500,500)))} 
+    else(return(0))
+  }
+  
+  A[1, ]<- A0
+  B[1,] <- B0
+  for(i in 1:n){
+    dNt <- rpois(nsim, lambda*dt)
+    dJt <- vapply(dNt, jump, numeric(1))
+    A[i+1,] <- A[i,] + A[i,] *(mu*dt + sigma*Z[i,]*sqrt(dt)) + dJt
+    B[i+1,] <- B[i,]+ r*B[i,]*dt
+    
+    E[i+1,] <- A[i+1,] - B[i+1,]
+    if( E[i+1,] <= rep(0,n)){
+      E[(i+2):(m+1),] <- 0
+      break
+      
+    }
+  }
+
+  return(E)
+  
+}
+```
+
+```{r}
+E3 <- equity_process3(mu = 0.1, t = 5, sigma = 0.2, n =1e3, A0 = 1000, B0 = 900, r =0.1, nsim = 1e3, lambda = 1.2)
+mean(E3[nrow(E3),] <0)
+```
+
+### Problem 2
+#(2a) The Heston Model.
+```{r}
+S0 <- 50; r <- 0.03; a <- 1; b <- 0.2; sigma <- 0.6; theta0 <- 0.3; T <- 1; K <- 50; rho <- 0.6; m <- 50
+
+heston_path <- function(S0, r, a, b, sigma, theta0, T, K, rho, m){
+  dt <- T/m
+  
+  S <- numeric(m+1)
+  theta <- numeric(m+1)
+  S[1] <- S0
+  theta[1] <- theta0
+  
+  Z1 <- rnorm(m)
+  Z2 <- rnorm(m)
+  #giải cholesky
+  
+  Z_1 <- Z1
+  Z_2 <- rho*Z1 + sqrt(1-rho^2)*Z2
+  
+  for (i in 1:m) {
+    theta[i] <- max(theta[i],0)
+    theta[i+1] <- theta[i] + a*(b-theta[i])*dt + sigma*sqrt(theta[i])*sqrt(dt)*Z_1[i]
+    S[i+1] <- S[i] + r*S[i]*dt + sqrt(theta[i])*S[i]*sqrt(dt)*Z_2[i]
+  }
+  euro <- max(S[m+1] - K, 0)
+  avg <- max(mean(S[2:(m+1)]) - K, 0)
+  price_euro <- euro*exp(-r*T)
+  price_avg <- avg*exp(-r*T)
+  
+  return(c(price_euro, price_avg))
+}
+
+nsim <- 1e5
+sim <- replicate(nsim, heston_path(S0, r, a, b, sigma, theta0, T, K, rho, m))
+
+euro_mean <- mean(sim[1,])
+euro_se   <- sd(sim[1,]) / sqrt(nsim)
+aver_mean <- mean(sim[2,])
+aver_se   <- sd(sim[2,]) / sqrt(nsim)
+
+cat("European call option price:", euro_mean, "| SE:", euro_se, "\n",
+    "Average call option price:", aver_mean, "| SE:", aver_se, "\n")
+```
+
+#(2b) Variance Reduction: Antithetic
+
+```{r}
+S0 <- 50; r <- 0.03; a <- 1; b <- 0.2; sigma <- 0.6; theta0 <- 0.3; T <- 1; K <- 50; rho <- 0.6; m <- 50
+
+heston_path_anti <- function(S0, r, a, b, sigma, theta0, T, K, rho, m){
+  dt <- T/m
+  
+  S <- numeric(m+1)
+  S_anti <- numeric(m+1)
+  theta <- numeric(m+1)
+  theta_anti <- numeric(m+1)
+  
+  S[1] <- S0
+  S_anti[1] <- S0
+  theta[1] <- theta0
+  theta_anti[1] <- theta0
+  
+  Z1 <- rnorm(m)
+  Z2 <- rnorm(m)
+  # tính cholesky
+  Z_1 <- Z1
+  Z_1_anti <- -Z_1
+  
+  Z_2 <- rho*Z1 + sqrt(1-rho^2)*Z2
+  Z_2_anti <- -Z_2
+  
+  for (i in 1:m) {
+    theta[i] <- max(theta[i],0)
+    
+    theta[i+1] <- theta[i] + a*(b-theta[i])*dt + sigma*sqrt(theta[i])*sqrt(dt)*Z_1[i]
+    S[i+1] <- S[i] + r*S[i]*dt + sqrt(theta[i])*S[i]*sqrt(dt)*Z_2[i]
+    
+    #Anti path
+    theta_anti[i] <- max(theta_anti[i],0)
+    
+    theta_anti[i+1] <- theta_anti[i] + a*(b-theta_anti[i])*dt + sigma*sqrt(theta_anti[i])*sqrt(dt)*Z_1_anti[i]
+    S_anti[i+1] <- S_anti[i] + r*S_anti[i]*dt + sqrt(theta_anti[i])*S_anti[i]*sqrt(dt)*Z_2_anti[i]
+  }
+
+  price_euro <- max(S[m+1] - K, 0)*exp(-r*T)
+  price_avg <- max(mean(S[2:(m+1)]) - K, 0)*exp(-r*T)
+  price_euro_anti <- max(S_anti[m+1] - K, 0)*exp(-r*T)
+  price_avg_anti <- max(mean(S_anti[2:(m+1)]) - K, 0)*exp(-r*T)
+  
+  euro_VR <- (price_euro + price_euro_anti)/2
+  avg_VR <- (price_avg + price_avg_anti)/2
+  
+  return(c(euro_VR, avg_VR))
+}
+
+nsim <- 1e5
+simlist_VR <- replicate(nsim, heston_path_anti(S0, r, a, b, sigma, theta0, T, K, rho, m))
+price_euro_VR <- mean(simlist_VR[1, ])
+price_avg_VR <- mean(simlist_VR[2, ])
+
+se_euro_VR <- sd(simlist_VR[1, ])/sqrt(nsim)
+se_avg_VR <- sd(simlist_VR[2, ])/sqrt(nsim)
+
+cat("European call option price:", price_euro_VR, "| SE:", se_euro_VR, "\n",
+    "Average call option price:", price_avg_VR, "| SE:", se_avg_VR, "\n")
+```
+#report for comparison:
+Report:
+
+While the Euler scheme introduces discretization error (which is controlled by the number of steps), the Antithetic Variates method focuses on reducing the statistical sampling error (captured by the SE).
+
+Path Dependency: The significant reduction in SE (~36%) for the Asian Call highlights the effectiveness of antithetic paths in smoothing out the average price volatility throughout the simulation period.
+
+Computational Efficiency: By utilizing antithetic pairs, we achieved a substantially higher level of precision (tighter confidence intervals) without the need to increase the number of paths, thereby optimizing the computation.
+
+
+#(2c) Delta hedging by Euler scheme.
+```{r}
+Eu_Delta_Heston <- function(nsim, S0, r, a, b, sigma, theta0, T, K, rho, m) {
+  dt <- T/m
+  L <- t(chol(matrix(c(1, rho, rho, 1), 2, byrow = TRUE)))
+  
+  # Khởi tạo ma trận
+  S <- matrix(0, m + 1, nsim)
+  theta <- matrix(0, m + 1, nsim)
+  Delta_path <- matrix(0, m + 1, nsim) 
+  
+  S[1, ] <- S0
+  theta[1, ] <- theta0
+  Delta_path[1, ] <- 1 # Hint: Delta_0 = 1
+  
+  for (t in 1:m) {
+    Z_raw <- matrix(rnorm(2 * nsim), nrow = 2)
+    Z <- L %*% Z_raw 
+    
+    theta[t, ] <- pmax(theta[t, ], 0)
+    
+    theta[t+1, ] <- theta[t, ] + a*(b - theta[t, ])*dt + sigma*sqrt(theta[t, ])*Z[1, ]*sqrt(dt)
+    
+    S[t+1, ] <- S[t, ] + r*S[t, ]*dt + sqrt(theta[t, ])*S[t, ]*Z[2, ]*sqrt(dt)
+    
+    Delta_path[t+1, ] <- Delta_path[t, ] * (1 + r*dt + sqrt(theta[t, ])*Z[2, ]*sqrt(dt))
+  }
+  
+  # Lấy giá trị tại bước cuối T
+  ST <- S[m+1, ]
+  Delta_T <- Delta_path[m+1, ]
+  
+  # Indicator(ST >= K) trong R trả về 1 nếu đúng, 0 nếu sai
+  delta_estimates <- exp(-r * T) * (ST >= K) * Delta_T
+  
+  res_delta <- mean(delta_estimates)
+  res_se <- sd(delta_estimates) / sqrt(nsim)
+  
+  return(data.frame(Delta = res_delta, SE = res_se))
+}
+
+result_delta <- Eu_Delta_Heston(nsim=1e4, S0=50, r=0.03, a=1, b=0.2, sigma=0.6, theta0=0.3, T=1, K=50, rho=0.6, m=50)
+print(result_delta)
+```
+

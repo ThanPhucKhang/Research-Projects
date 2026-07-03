@@ -1,0 +1,257 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+### MUST_RUN
+```{r}
+library(readxl)
+V8 <- read_excel("~/Documents/University/Second Year/Second semester/Econometrics/V8.xlsx")
+```
+
+### MUST_RUN
+```{r}
+# Tải thư viện
+library(lmtest)
+
+# 1. Kiểm định RESET (Ramsey's RESET test) 
+# Để kiểm tra xem mô hình có bỏ sót biến hay sai dạng hàm không
+reset_result <- resettest(find1, power = 2:3, type = "fitted")
+
+# 2. Kiểm định Breusch-Pagan (BP test)
+# Để kiểm tra hiện tượng phương sai sai số thay đổi
+bp_result <- bptest(find1)
+
+# In kết quả
+print(reset_result)
+print(bp_result)
+```
+
+
+```{r}
+summary(V8[, c("NM", "Unem", "Urb", "Pd", "Omlag")])
+# Chọn các cột cần tính
+cols <- c("NM", "Unem", "Urb", "Pd", "Omlag")
+
+# Tính SD
+sapply(V8[, cols], sd, na.rm = TRUE)
+```
+
+## model 1
+```{r}
+find1 <- lm( NM ~   + Pd+ Urb  + Omlag  + Unem+ DumDBSCL ,  
+                 data = V8)
+summary(find1)
+# Lấy giá trị dự báo từ model
+y_pred <- predict(find1)
+# Giá trị thực tế (thay NM bằng tên biến Y của ông nếu khác)
+y_true <- V8$NM 
+
+# 1. RMSE (Root Mean Squared Error)
+rmse_val <- sqrt(mean((y_true - y_pred)^2))
+
+# 2. MAE (Mean Absolute Error)
+mae_val <- mean(abs(y_true - y_pred))
+
+# 3. MAPE (Mean Absolute Percentage Error) - đơn vị %
+mape_val <- mean(abs((y_true - y_pred) / y_true)) * 100
+
+# In kết quả
+cat("RMSE:", rmse_val, "\nMAE:", mae_val, "\nMAPE:", mape_val)
+plot(find1)
+
+
+```
+
+```{r}
+# Chạy các kiểm định
+# 1. Kiểm định Ramsey RESET (Kiểm tra xem mô hình có sai dạng hàm hay thiếu biến không)
+# H0: Mô hình thiết lập đúng dạng hàm
+reset_val <- resettest(find1, power = 2:3, type = "fitted")
+
+# 2. Kiểm định Breusch-Pagan (Kiểm tra phương sai sai số thay đổi)
+# H0: Phương sai sai số không đổi (Đồng nhất)
+bp_val <- bptest(find1)
+
+# In kết quả ra màn hình Console
+cat("\n--- KẾT QUẢ KIỂM ĐỊNH ---\n")
+print(reset_val)
+print(bp_val)
+
+```
+
+
+```{r}
+library(car)
+vif(find1)
+```
+
+## model 2
+```{r}
+find3 <- lm( NM ~  Urb + PdUR  + Omlag  + DumHCM ,  
+                 data = V8)
+summary(find3)
+# Lấy giá trị dự báo từ model
+y_pred <- predict(find3)
+# Giá trị thực tế (thay NM bằng tên biến Y của ông nếu khác)
+y_true <- V8$NM 
+
+# 1. RMSE (Root Mean Squared Error)
+rmse_val <- sqrt(mean((y_true - y_pred)^2))
+
+# 2. MAE (Mean Absolute Error)
+mae_val <- mean(abs(y_true - y_pred))
+
+# 3. MAPE (Mean Absolute Percentage Error) - đơn vị %
+mape_val <- mean(abs((y_true - y_pred) / y_true)) * 100
+
+# In kết quả
+cat("RMSE:", rmse_val, "\nMAE:", mae_val, "\nMAPE:", mape_val)
+plot(find3)
+
+
+```
+
+```{r}
+# Chạy các kiểm định
+# 1. Kiểm định Ramsey RESET (Kiểm tra xem mô hình có sai dạng hàm hay thiếu biến không)
+# H0: Mô hình thiết lập đúng dạng hàm
+reset_val <- resettest(find1, power = 2:3, type = "fitted")
+
+# 2. Kiểm định Breusch-Pagan (Kiểm tra phương sai sai số thay đổi)
+# H0: Phương sai sai số không đổi (Đồng nhất)
+bp_val <- bptest(find3)
+
+# In kết quả ra màn hình Console
+cat("\n--- KẾT QUẢ KIỂM ĐỊNH ---\n")
+print(reset_val)
+print(bp_val)
+
+```
+
+
+```{r}
+library(car)
+vif(find3)
+```
+
+
+
+##model 3
+
+```{r}
+find4 <- lm( NM ~ + Pd + Urb   + Omlag  + DumHCM ,  
+                 data = V8)
+summary(find4)
+# Lấy giá trị dự báo từ model
+y_pred <- predict(find4)
+# Giá trị thực tế (thay NM bằng tên biến Y của ông nếu khác)
+y_true <- V8$NM 
+
+# 1. RMSE (Root Mean Squared Error)
+rmse_val <- sqrt(mean((y_true - y_pred)^2))
+
+# 2. MAE (Mean Absolute Error)
+mae_val <- mean(abs(y_true - y_pred))
+
+# 3. MAPE (Mean Absolute Percentage Error) - đơn vị %
+mape_val <- mean(abs((y_true - y_pred) / y_true)) * 100
+
+# In kết quả
+cat("RMSE:", rmse_val, "\nMAE:", mae_val, "\nMAPE:", mape_val)
+plot(find4)
+
+
+```
+
+```{r}
+# Chạy các kiểm định
+# 1. Kiểm định Ramsey RESET (Kiểm tra xem mô hình có sai dạng hàm hay thiếu biến không)
+# H0: Mô hình thiết lập đúng dạng hàm
+reset_val <- resettest(find4, power = 2:3, type = "fitted")
+
+# 2. Kiểm định Breusch-Pagan (Kiểm tra phương sai sai số thay đổi)
+# H0: Phương sai sai số không đổi (Đồng nhất)
+bp_val <- bptest(find4)
+
+# In kết quả ra màn hình Console
+cat("\n--- KẾT QUẢ KIỂM ĐỊNH ---\n")
+print(reset_val)
+print(bp_val)
+
+```
+
+```{r}
+library(car)
+vif(find4)
+```
+
+## Model 4
+
+```{r}
+find6 <- lm( NM ~  log(Urb) + Pd + Omlag  + DumDBSCL ,  
+                 data = V8)
+summary(find6)
+# Lấy giá trị dự báo từ model
+y_pred <- predict(find6)
+# Giá trị thực tế (thay NM bằng tên biến Y của ông nếu khác)
+y_true <- V8$NM 
+
+# 1. RMSE (Root Mean Squared Error)
+rmse_val <- sqrt(mean((y_true - y_pred)^2))
+
+# 2. MAE (Mean Absolute Error)
+mae_val <- mean(abs(y_true - y_pred))
+
+# 3. MAPE (Mean Absolute Percentage Error) - đơn vị %
+mape_val <- mean(abs((y_true - y_pred) / y_true)) * 100
+
+# In kết quả
+cat("RMSE:", rmse_val, "\nMAE:", mae_val, "\nMAPE:", mape_val)
+plot(find6)
+
+
+```
+```{r}
+qf(0.95,4,75)
+```
+
+
+
+```{r}
+# Chạy các kiểm định
+# 1. Kiểm định Ramsey RESET (Kiểm tra xem mô hình có sai dạng hàm hay thiếu biến không)
+# H0: Mô hình thiết lập đúng dạng hàm
+reset_val <- resettest(find6, power = 2:3, type = "fitted")
+
+# 2. Kiểm định Breusch-Pagan (Kiểm tra phương sai sai số thay đổi)
+# H0: Phương sai sai số không đổi (Đồng nhất)
+bp_val <- bptest(find6)
+
+# In kết quả ra màn hình Console
+cat("\n--- KẾT QUẢ KIỂM ĐỊNH ---\n")
+print(reset_val)
+print(bp_val)
+
+```
+
+```{r}
+qf(0.95,2,69)
+```
+
+
+```{r}
+library(car)
+vif(find6)
+```
+
+### summary + describe biến cơ bản
+
+```{r}
+# Cài đặt nếu chưa có: install.packages("psych")
+library("psych")
+
+describe(V8[, c("NM", "Unem", "Urb", "Pd", "Omlag")])
+```
+
